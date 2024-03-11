@@ -37,9 +37,9 @@ namespace CATEPRO
         readonly object thisLock = new object();
         TcpClient client;
         int codenum = 1;
-        string[] ColorList = new string[9] { "red", "orange", "yellow", "green", "skyblue", "blue", "purple", "pink", "red" };
-        int[] min = new int[9] { 166, 16, 21, 41, 76, 86, 136, 146, 166 };
-        int[] max = new int[9] { 180, 20, 40, 75, 85, 135, 145, 165, 180 };
+        string[] ColorList = new string[8] { "red", "orange", "yellow", "green", "skyblue", "blue", "purple", "pink" };
+        int[] min = new int[8] { 0,16, 21, 41, 76, 111, 123, 146 };
+        int[] max = new int[8] { 10, 20, 40, 75, 110, 122, 145, 165 };
 
 
         public MainWindow()
@@ -109,19 +109,16 @@ namespace CATEPRO
                 {
                     try
                     {
-                        int filelength,length;
                         byte[] bytes = new byte[1024];
 
-                        int datacheck = length = stream.Read(bytes, 0, bytes.Length);
-                        filedata = Encoding.Default.GetString(bytes, 0, length);
-                        if (datacheck <= 0) // read data
+                        int length = stream.Read(bytes, 0, bytes.Length);
+                        if (length == 0) // 소켓 종료시
                             break;
 
+                        filedata = Encoding.Default.GetString(bytes, 0, length);
                         string[] token = filedata.Split('^');
                         filename = token[0];
-
-                        filelength = Convert.ToInt32(token[1]);
-                        //MessageBox.Show(filename);
+                        int filelength = Convert.ToInt32(token[1]);
 
                         dirname = "C:\\Users\\IOT\\Desktop\\testfile\\" + filename;
                         filestream = new FileStream(dirname, FileMode.Create, FileAccess.Write);
@@ -137,24 +134,22 @@ namespace CATEPRO
 
                         //원본
                         bytes = new byte[filelength];
-                        stream.Read(bytes, 0, filelength);
-                        servwriter.Write(bytes, 0, filelength);
+                        int byteRead = stream.Read(bytes, 0, filelength);
+                        if (byteRead > 0)
+                            servwriter.Write(bytes, 0, filelength);
 
-                        //servwriter.Flush();
                         servwriter.Close();
-                        //filestream.Flush();
                         filestream.Close();
+                        Application.Current.Dispatcher.Invoke(() =>
+                        {
+                            tb.AppendText(" 파일이 다운로드 되었습니다.\n");
+                        });
+                        SendData(stream, dirname);
                     }
-                    catch(FileLoadException e)
+                    catch(IOException e)
                     {
-                        MessageBox.Show("오류");
+                        break;
                     }
-
-                    Application.Current.Dispatcher.Invoke(() =>
-                    {
-                        tb.AppendText(" 파일이 다운로드 되었습니다.\n");
-                    });
-                    SendData(stream, dirname);
 
                 }
 
@@ -168,43 +163,49 @@ namespace CATEPRO
         {
             string shape = "unidentified";
             double peri = Cv2.ArcLength(c, true);
-            OpenCvSharp.Point[] approx = Cv2.ApproxPolyDP(c, 0.02 * peri, true);
+            OpenCvSharp.Point[] approx = Cv2.ApproxPolyDP(c, 0.04 * peri, true); // 점갯수 반환하는거였음
             double length = Cv2.ArcLength(c, true);
 
-            if (approx.Length == 3) //if the shape is a triangle, it will have 3 vertices
-            {
-                shape = "triangle";
-            }
-            else if (approx.Length == 4 && length < 300)    //if the shape has 4 vertices, it is either a square or a rectangle
+            if (approx.Length == 3) //삼각형
             {
                 OpenCvSharp.Rect rect;
-                rect = Cv2.BoundingRect(approx);
+                rect = Cv2.BoundingRect(approx); // 주어진 점을 감싸는 최소 크기의 사각형을 반환
                 double ar = rect.Width / (double)rect.Height;
 
-                if (ar >= 0.95 && ar <= 1.05)
+                if (ar >= 0.95 && ar <= 1.35) // 정삼각형
+                {
+                    shape = "equilateral triangle";
+                }
+                else // 나머지 삼각형?
+                {
+                    shape = "right triangle";
+                }
+            }
+            else if (approx.Length == 4 && length < 300)
+            {
+                OpenCvSharp.Rect rect;
+                rect = Cv2.BoundingRect(approx); // 주어진 점을 감싸는 최소 크기의 사각형을 반환
+                double ar = rect.Width / (double)rect.Height;
+                if (ar >= 0.95 && ar <= 1.35) // 정사각형
                 {
                     shape = "square";
                 }
-                else
+                else // 직사각형
                 {
                     shape = "rectangle";
                 }
             }
-            //else if(approx.Length == 10)
-            //{
-            //    shape = "star!";
-            //    num++;
-            //}
-            else   //otherwise, shape is a circle
+            else if (approx.Length == 5) // 오각형
             {
-                if (length < 800)
-                {
-                    shape = "circle";
-                }
-                else
-                {
-                    shape = " ";
-                }
+                shape = "pentagon";
+            }
+            else if (approx.Length == 10) //별모양
+            {
+                shape = "star!";
+            }
+            else // 원
+            {
+                shape = "circle";
             }
             return shape;
         }
@@ -233,23 +234,31 @@ namespace CATEPRO
                 //액션 대리자
                 //Action<object> FuncDIvision = (object tnum) =>
                 //{
-                for (int tasknum = 0; tasknum < 3; tasknum++)
+                for (int tasknum = 0; tasknum < 8; tasknum++)
                 {
 
-                    Cv2.InRange(mv, new Scalar(min[tasknum], 70, 70), new Scalar(max[tasknum], 255, 255), divcolor[tasknum]);
+                    Cv2.InRange(mv, new Scalar(min[tasknum], 50, 100), new Scalar(max[tasknum], 255, 255), divcolor[tasknum]);
+                    Cv2.MedianBlur(mv,mv, 3);
 
                     Cv2.FindContours(divcolor[tasknum], out var shapecontour, out HierarchyIndex[] shapehierarchy, RetrievalModes.Tree, ContourApproximationModes.ApproxSimple);
 
-                    //Cv2.Dilate(divcolor[tasknum], divcolor[tasknum], new Mat(), new OpenCvSharp.Point(-1, -1), 3);
+                    Cv2.Dilate(divcolor[tasknum], divcolor[tasknum], new Mat(), new OpenCvSharp.Point(-1, -1), 3);
                     foreach (var con in shapecontour)
                     {
                         double pixel = Cv2.ContourArea(con, true);
                         if (pixel < -300)
                         {
+                            //RotatedRect rect = Cv2.MinAreaRect(con);
                             mmt[tasknum] = Cv2.Moments(con);
-                            OpenCvSharp.Point pnt = new OpenCvSharp.Point(mmt[tasknum].M10 / mmt[tasknum].M00, mmt[tasknum].M01 / mmt[tasknum].M00); // 중심점 찾기
+                            OpenCvSharp.Point pnt = new OpenCvSharp.Point(mmt[tasknum].M10 / mmt[tasknum].M00 - 35, mmt[tasknum].M01 / mmt[tasknum].M00); // 중심점 찾기
                             string shape = GetShape(con); // 선분 갯수에 따라서 도형 나누기
-                            Cv2.DrawContours(src, shapecontour, -1, Scalar.Red, 1, LineTypes.AntiAlias);
+                            //for (int j = 0; j < 4; j++)
+                            //{
+                            //    Cv2.Line(src, new OpenCvSharp.Point(rect.Points()[j].X, rect.Points()[j].Y), new OpenCvSharp.Point(rect.Points()[(j + 1) % 4].X, rect.Points()[(j + 1) % 4].Y), Scalar.Red, 1, LineTypes.AntiAlias);
+                            //}
+                            //Cv2.DrawContours(src, shapecontour, -1, Scalar.Red, 1, LineTypes.AntiAlias);
+                            Cv2.MinEnclosingCircle(con, out Point2f center, out float radius);
+                            Cv2.Circle(src, new OpenCvSharp.Point(center.X, center.Y), (int)radius, Scalar.Red, 1, LineTypes.AntiAlias);
                             Cv2.PutText(src, Convert.ToString(codenum) + "_" + shape + "_" + ColorList[tasknum], pnt, HersheyFonts.HersheySimplex, 0.25, Scalar.Black, 1); //이게 중심점에서 문자 띄우는 역할
                             Application.Current.Dispatcher.Invoke(() =>
                             {
@@ -257,14 +266,14 @@ namespace CATEPRO
                             });
 
 
-                            string message = Convert.ToString(codenum++) + "^" + ColorList[tasknum] + "^" + shape;
-                            byte[] msg = Encoding.UTF8.GetBytes(message);
-                            stream.Write(msg, 0, msg.Length);
-                            Thread.Sleep(100);
-                            Application.Current.Dispatcher.Invoke(() =>
-                            {
-                                tb.AppendText("send success");
-                            });
+                            //string message = Convert.ToString(codenum++) + "^" + ColorList[tasknum] + "^" + shape;
+                            //byte[] msg = Encoding.UTF8.GetBytes(message);
+                            //stream.Write(msg, 0, msg.Length);
+                            //Thread.Sleep(100);
+                            //Application.Current.Dispatcher.Invoke(() =>
+                            //{
+                            //    tb.AppendText("send success");
+                            //});
                         }
                     }
                 }
