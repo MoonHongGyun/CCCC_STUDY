@@ -18,6 +18,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Threading;
 using System.IO;
+using System.Data.SQLite;
 
 //opencv
 using OpenCvSharp;
@@ -31,22 +32,20 @@ namespace CATEPRO
     /// 
     public partial class MainWindow : System.Windows.Window
     {
+        SQLiteConnection serverdb;
         private TcpListener server = null;
         NetworkStream[] streamList = new NetworkStream[10];
         int clntcnt = 0;
         readonly object thisLock = new object();
-        TcpClient client;
         int codenum = 1;
         string[] ColorList = new string[8] { "red", "orange", "yellow", "green", "skyblue", "blue", "purple", "pink" };
-        int[] min = new int[8] { 0,16, 21, 41, 76, 111, 123, 146 };
-        int[] max = new int[8] { 10, 20, 40, 75, 110, 122, 145, 165 };
+        int[] min = new int[8] { 0,10, 25, 40, 85, 110, 135, 150 };
+        int[] max = new int[8] { 5, 20, 35, 75, 108, 125, 145, 165 };
 
 
         public MainWindow()
         {
             InitializeComponent();
-            ServerRun();
-
         }
 
         private void ServerRun()
@@ -56,6 +55,7 @@ namespace CATEPRO
 
             IPEndPoint localadr = new IPEndPoint(IPAddress.Parse(bindip), bindport);
             server = new TcpListener(localadr);
+
 
             server.Start();
 
@@ -70,14 +70,8 @@ namespace CATEPRO
             {
                 try
                 {
-                    client = server.AcceptTcpClient();
-                }
-                catch(SocketException e)
-                {
-                    MessageBox.Show("접속 오류");
-                }
-                finally
-                {
+                    TcpClient client = server.AcceptTcpClient();
+
                     NetworkStream stream = client.GetStream();
                     lock (thisLock)
                     {
@@ -86,17 +80,20 @@ namespace CATEPRO
                     Application.Current.Dispatcher.Invoke(() =>
                     {
                         tb.AppendText(" 접속 성공.\n");
-
                     });
 
-                    DownloadFile(stream);
+                    DownloadFile(stream,client);
+                }
+                catch(SocketException e)
+                {
+                    break;
                 }
                 
             }
 
         }
 
-        async private void DownloadFile(NetworkStream stream)
+        async private void DownloadFile(NetworkStream stream, TcpClient client)
         {
             await Task.Run(() =>
             {
@@ -110,11 +107,15 @@ namespace CATEPRO
                     try
                     {
                         byte[] bytes = new byte[1024];
-
                         int length = stream.Read(bytes, 0, bytes.Length);
                         if (length == 0) // 소켓 종료시
+                        {
+                            Application.Current.Dispatcher.Invoke(() =>
+                            {
+                                tb.AppendText("접속 종료\n");
+                            });
                             break;
-
+                        }
                         filedata = Encoding.Default.GetString(bytes, 0, length);
                         string[] token = filedata.Split('^');
                         filename = token[0];
@@ -144,7 +145,9 @@ namespace CATEPRO
                         {
                             tb.AppendText(" 파일이 다운로드 되었습니다.\n");
                         });
+
                         SendData(stream, dirname);
+
                     }
                     catch(IOException e)
                     {
@@ -178,7 +181,7 @@ namespace CATEPRO
                 }
                 else // 나머지 삼각형?
                 {
-                    shape = "right triangle";
+                    shape = "triangle";
                 }
             }
             else if (approx.Length == 4 && length < 300)
@@ -198,6 +201,10 @@ namespace CATEPRO
             else if (approx.Length == 5) // 오각형
             {
                 shape = "pentagon";
+            }
+            else if (approx.Length == 6) // 오각형
+            {
+                shape = "hexagon";
             }
             else if (approx.Length == 10) //별모양
             {
@@ -231,14 +238,17 @@ namespace CATEPRO
                     cam1.Source = OpenCvSharp.WpfExtensions.WriteableBitmapConverter.ToWriteableBitmap(src);
                 });
 
-                //액션 대리자
-                //Action<object> FuncDIvision = (object tnum) =>
-                //{
+                //디비오픈
+                //string dbpath = @"Data Source=C:\Users\IOT\Desktop\STUDY_C#\CCCC_STUDY\CATEPRO\CATEPRO\DIV";
+                //serverdb = new SQLiteConnection(dbpath);
+                //serverdb.Open();
+
+                //string[] DivList = new
+
                 for (int tasknum = 0; tasknum < 8; tasknum++)
                 {
-
-                    Cv2.InRange(mv, new Scalar(min[tasknum], 50, 100), new Scalar(max[tasknum], 255, 255), divcolor[tasknum]);
-                    Cv2.MedianBlur(mv,mv, 3);
+                    Cv2.InRange(mv, new Scalar(min[tasknum], 100, 100), new Scalar(max[tasknum], 255, 255), divcolor[tasknum]);
+                    Cv2.MedianBlur(mv, mv, 3);
 
                     Cv2.FindContours(divcolor[tasknum], out var shapecontour, out HierarchyIndex[] shapehierarchy, RetrievalModes.Tree, ContourApproximationModes.ApproxSimple);
 
@@ -252,55 +262,28 @@ namespace CATEPRO
                             mmt[tasknum] = Cv2.Moments(con);
                             OpenCvSharp.Point pnt = new OpenCvSharp.Point(mmt[tasknum].M10 / mmt[tasknum].M00 - 35, mmt[tasknum].M01 / mmt[tasknum].M00); // 중심점 찾기
                             string shape = GetShape(con); // 선분 갯수에 따라서 도형 나누기
-                            //for (int j = 0; j < 4; j++)
-                            //{
-                            //    Cv2.Line(src, new OpenCvSharp.Point(rect.Points()[j].X, rect.Points()[j].Y), new OpenCvSharp.Point(rect.Points()[(j + 1) % 4].X, rect.Points()[(j + 1) % 4].Y), Scalar.Red, 1, LineTypes.AntiAlias);
-                            //}
-                            //Cv2.DrawContours(src, shapecontour, -1, Scalar.Red, 1, LineTypes.AntiAlias);
                             Cv2.MinEnclosingCircle(con, out Point2f center, out float radius);
                             Cv2.Circle(src, new OpenCvSharp.Point(center.X, center.Y), (int)radius, Scalar.Red, 1, LineTypes.AntiAlias);
-                            Cv2.PutText(src, Convert.ToString(codenum) + "_" + shape + "_" + ColorList[tasknum], pnt, HersheyFonts.HersheySimplex, 0.25, Scalar.Black, 1); //이게 중심점에서 문자 띄우는 역할
+                            Cv2.PutText(src, Convert.ToString(codenum) + "_" + ColorList[tasknum] + "_" + shape, pnt, HersheyFonts.HersheySimplex, 0.25, Scalar.Black, 1); //이게 중심점에서 문자 띄우는 역할
                             Application.Current.Dispatcher.Invoke(() =>
                             {
-                                tb.AppendText(Convert.ToString(codenum) + "_" + shape + "_" + ColorList[tasknum] + "\n");
+                                tb.AppendText(Convert.ToString(codenum) + "_" + ColorList[tasknum] + "_" + shape + "\n");
+
                             });
 
+                            ////db저장
+                            //string sql = $"INSERT INTO RESULT VALUES({codenum++},'{shape}','{ColorList[tasknum]}')";
+                            //SQLiteCommand command = new SQLiteCommand(sql, serverdb);
+                            //command.ExecuteNonQuery();
 
-                            //string message = Convert.ToString(codenum++) + "^" + ColorList[tasknum] + "^" + shape;
-                            //byte[] msg = Encoding.UTF8.GetBytes(message);
-                            //stream.Write(msg, 0, msg.Length);
-                            //Thread.Sleep(100);
-                            //Application.Current.Dispatcher.Invoke(() =>
-                            //{
-                            //    tb.AppendText("send success");
-                            //});
+                            string message = Convert.ToString(codenum++) + "^" + ColorList[tasknum] + "^" + shape;
+                            byte[] msg = Encoding.UTF8.GetBytes(message);
+                            stream.Write(msg, 0, msg.Length);
+                            stream.Flush();
+
                         }
                     }
                 }
-
-      
-                    
-                //};
-
-                //Task[] divtask = new Task[9];
-
-                //for (int i = 0; i < 2; i++)
-                //{
-                //    divtask[i] = Task.Run(() =>
-                //    {
-                //        FuncDIvision(i);
-                //    });
-                //}
-
-                //divtask[0].Wait();
-                //divtask[1].Wait();
-                //divtask[2].Wait();
-
-                //foreach (Task task in divtask)
-                //{
-                //    task.Wait();
-                //}
-
 
                 Application.Current.Dispatcher.Invoke(() =>
                 {
@@ -314,26 +297,22 @@ namespace CATEPRO
             server.Stop();
         }
 
+        private void Serveropen_btn_Click(object sender, RoutedEventArgs e)
+        {
+            Application.Current.Dispatcher.Invoke(() =>
+            {
+                tb.AppendText("서버 오픈\n");
+            });
+            ServerRun();
+        }
+
+        private void Serverstop_btn_Click(object sender, RoutedEventArgs e)
+        {
+            Application.Current.Dispatcher.Invoke(() =>
+            {
+                tb.AppendText("서버 종료\n");
+            });
+            server.Stop();
+        }
     }
 }
-
-//int filelength, filenamelength, length;
-//byte[] bytes = new byte[1024];
-
-//int datacheck = length = stream.Read(bytes, 0, bytes.Length);
-//filename = Encoding.Default.GetString(bytes, 0, length);
-//                        if (datacheck <= 0) // read data
-//                            break;
-//                        //원본
-//                        stream.Read(bytes, 0, bytes.Length);
-
-
-//                        filelength = BitConverter.ToInt32(bytes, 0);
-
-//                        bytes = new byte[filenamelength];
-//                        length = stream.Read(bytes, 0, bytes.Length);
-//                        filename = Encoding.Default.GetString(bytes, 0, length);
-
-//                        bytes = new byte[4];
-//                        stream.Read(bytes, 0, bytes.Length);
-//                        filenamelength = BitConverter.ToInt32(bytes, 0);
