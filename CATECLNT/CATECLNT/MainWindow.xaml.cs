@@ -24,6 +24,8 @@ namespace CATECLNT
     /// </summary>
     public partial class MainWindow : Window
     {
+        int filelength;
+        FileStream filestream;
         NetworkStream stream;
         TcpClient client;
         int num = 1;
@@ -48,32 +50,49 @@ namespace CATECLNT
 
             stream = client.GetStream();
 
+            string filepath = "C:\\Users\\IOT\\Desktop\\cola\\shape" + Convert.ToString(num) + ".jpg";
 
-            //recvmessage();
+            recvmessage();
 
         }
 
-        //async public void recvmessage()
-        //{
-        //    await Task.Run(() =>
-        //    {
-        //        while (true)
-        //        {
-        //            byte[] msg = new byte[4];
-        //            int msglen;
-        //            int msgbytelen;
-        //            stream.Read(msg, 0, msg.Length);
-        //            msgbytelen = BitConverter.ToInt32(msg, 0);
-        //            msg = new byte[msgbytelen];
-        //            msglen = stream.Read(msg, 0, msg.Length);
-        //            string data = Encoding.UTF8.GetString(msg, 0, msglen);
-        //            Application.Current.Dispatcher.Invoke(() =>
-        //            {
-        //                tb.AppendText(data + "\n");
-        //            });
-        //        }
-        //    });
-        //}
+
+
+        async public void recvmessage() //데이터수신 ok일때만 파일전송 나머지는 테이블박스에 데이터 올림
+        {
+            await Task.Run(() =>
+            {
+                string filepath = "C:\\Users\\IOT\\Desktop\\cola\\shape" + Convert.ToString(num) + ".jpg";
+                string filename = "shape" + Convert.ToString(num) + ".jpg^";
+                byte[] filebyte = Encoding.UTF8.GetBytes(filename);
+                int testlen;
+                string checktest = "ok\n";
+
+                byte[] rcbytes = new byte[1024];
+                byte[] bytes = new byte[1024];
+                while (true)
+                {
+                    testlen = stream.Read(rcbytes, 0, rcbytes.Length);
+                    rcbytes[testlen] = 0;
+                    string test = Encoding.UTF8.GetString(rcbytes, 0, testlen);
+                    Application.Current.Dispatcher.Invoke(() =>
+                    {
+                        tb.AppendText(test);
+                    });
+
+                    if(test == checktest)
+                    {
+                        BinaryReader clntreader = new BinaryReader(filestream);
+
+                        bytes = clntreader.ReadBytes(filelength);
+                        stream.Write(bytes, 0, bytes.Length);
+                        clntreader.Close();
+                    }
+                    filestream.Close();
+                }
+                
+            });
+        }
 
         private void Window_Closed(object sender, EventArgs e)
         {
@@ -84,55 +103,20 @@ namespace CATECLNT
         private void Button_Click_1(object sender, RoutedEventArgs e)
         {
             string filepath = "C:\\Users\\IOT\\Desktop\\cola\\shape" + Convert.ToString(num) + ".jpg";
-            string filename = "shape" + Convert.ToString(num) +".jpg^" ;
+            string filename = "shape" + Convert.ToString(num) + ".jpg^";
             byte[] filebyte = Encoding.UTF8.GetBytes(filename);
-            //num++;
+            num++;
 
+            filestream = new FileStream(filepath, FileMode.Open, FileAccess.Read);
 
-            FileStream filestream = new FileStream(filepath, FileMode.Open, FileAccess.Read);
-
-
-            int filelength = (int)filestream.Length;
+            filelength = (int)filestream.Length;
             filename += filelength.ToString();
             byte[] bytes = new byte[1024];
+            byte[] rcbytes = new byte[1024];
             bytes = Encoding.Default.GetBytes(filename);
             stream.Write(bytes, 0, bytes.Length);
 
-            stream.Read(bytes, 0, bytes.Length);
 
-            BinaryReader clntreader = new BinaryReader(filestream);
-
-            bytes = clntreader.ReadBytes(filelength);
-            stream.Write(bytes, 0, bytes.Length);
-
-            RecvMsg();
-
-            filestream.Close();
-            clntreader.Close();
-
-        }
-
-        private void Button_Click_2(object sender, RoutedEventArgs e)
-        {
-
-        }
-
-        async public void RecvMsg()
-        {
-            await Task.Run(() =>
-            {
-                while(true)
-                {
-                    byte[] bytes = new byte[1024];
-                    stream.Read(bytes, 0, bytes.Length);
-                    string test = Encoding.UTF8.GetString(bytes, 0, bytes.Length);
-
-                    Application.Current.Dispatcher.Invoke(() =>
-                    {
-                        tb.AppendText(test);
-                    });
-                }
-            });
         }
     }
 }
