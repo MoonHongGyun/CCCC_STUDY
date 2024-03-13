@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -26,6 +26,7 @@ namespace CATECLNT
     {
         NetworkStream stream;
         TcpClient client;
+        int num = 1;
         public MainWindow()
         {
             InitializeComponent();
@@ -46,41 +47,6 @@ namespace CATECLNT
             client.Connect(serveradr);
 
             stream = client.GetStream();
-
-            string filepath = "C:\\Users\\IOT\\Desktop\\cola\\shape.jpg";
-            string filename = "shape.jpg";
-            int length;
-
-            FileStream filestream = new FileStream(filepath, FileMode.Open, FileAccess.Read);
-
-
-            int filelength = (int)filestream.Length;
-            byte[] bytes = BitConverter.GetBytes(filelength);
-            stream.Write(bytes, 0, bytes.Length);
-
-            int filenamelength = (int)filename.Length;
-            bytes = BitConverter.GetBytes(filenamelength);
-            stream.Write(bytes, 0, bytes.Length);
-
-            bytes = Encoding.UTF8.GetBytes(filename);
-            stream.Write(bytes, 0, bytes.Length);
-
-            BinaryReader clntreader = new BinaryReader(filestream);
-
-            if(filelength <= 100000)
-            {
-                bytes = clntreader.ReadBytes(filelength);
-                stream.Write(bytes, 0, bytes.Length);
-            }
-            else
-            {
-                int total = filelength / 10000 + 1;
-                for (int i = 0; i < total; i++)
-                {
-                    bytes = clntreader.ReadBytes(10000);
-                    stream.Write(bytes, 0, bytes.Length);
-                }
-            }
 
 
             //recvmessage();
@@ -113,6 +79,60 @@ namespace CATECLNT
         {
             stream.Close();
             client.Close();
+        }
+
+        private void Button_Click_1(object sender, RoutedEventArgs e)
+        {
+            string filepath = "C:\\Users\\IOT\\Desktop\\cola\\shape" + Convert.ToString(num) + ".jpg";
+            string filename = "shape" + Convert.ToString(num) +".jpg^" ;
+            byte[] filebyte = Encoding.UTF8.GetBytes(filename);
+            //num++;
+
+
+            FileStream filestream = new FileStream(filepath, FileMode.Open, FileAccess.Read);
+
+
+            int filelength = (int)filestream.Length;
+            filename += filelength.ToString();
+            byte[] bytes = new byte[1024];
+            bytes = Encoding.Default.GetBytes(filename);
+            stream.Write(bytes, 0, bytes.Length);
+
+            stream.Read(bytes, 0, bytes.Length);
+
+            BinaryReader clntreader = new BinaryReader(filestream);
+
+            bytes = clntreader.ReadBytes(filelength);
+            stream.Write(bytes, 0, bytes.Length);
+
+            RecvMsg();
+
+            filestream.Close();
+            clntreader.Close();
+
+        }
+
+        private void Button_Click_2(object sender, RoutedEventArgs e)
+        {
+
+        }
+
+        async public void RecvMsg()
+        {
+            await Task.Run(() =>
+            {
+                while(true)
+                {
+                    byte[] bytes = new byte[1024];
+                    stream.Read(bytes, 0, bytes.Length);
+                    string test = Encoding.UTF8.GetString(bytes, 0, bytes.Length);
+
+                    Application.Current.Dispatcher.Invoke(() =>
+                    {
+                        tb.AppendText(test);
+                    });
+                }
+            });
         }
     }
 }
