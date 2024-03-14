@@ -298,10 +298,11 @@ namespace CATEPRO
                             {
                                 total_lb.Content = $"TOTAL : {codenum - 1}";
                             });
-                            string message = Convert.ToString(codenum++) + "^" + ColorList[tasknum] + "^" + shape + "\n";
+                            string message = Convert.ToString(codenum++) + "^" + ColorList[tasknum] + "^" + shape;
                             byte[] msg = Encoding.UTF8.GetBytes(message);
                             stream.Write(msg, 0, msg.Length);
                             stream.Flush();
+                            Thread.Sleep(100);
 
                         }
                     }
