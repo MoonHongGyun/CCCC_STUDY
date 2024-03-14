@@ -40,8 +40,8 @@ namespace CATEPRO
         int codenum = 1;
         string[] ColorList = new string[8] { "red", "orange", "yellow", "green", "skyblue", "blue", "purple", "pink" };
         string[] ShapeList = new string[8] { "circle", "equilateral_triangle", "triangle", "square", "rectangle", "pentagon", "hexagon", "star" };
-        int[] min = new int[8] { 0,10, 25, 40, 85, 110, 125, 150 };
-        int[] max = new int[8] { 5, 20, 35, 75, 108, 120, 145, 165 };
+        //int[] min = new int[8] { 170,5, 25, 37, 85, 114, 125, 148 };
+        //int[] max = new int[8] { 180, 20, 35, 75, 113, 124, 145, 168 };
         int[] shapenum = new int[8] { 0, 0, 0, 0, 0, 0, 0, 0 };
         int[] colornum = new int[8] { 0, 0, 0, 0, 0, 0, 0, 0 };
         string colorchoice,shapechoice;
@@ -126,7 +126,7 @@ namespace CATEPRO
                         {
                             Application.Current.Dispatcher.Invoke(() =>
                             {
-                                tb.AppendText("접속 종료\n");
+                                tb.AppendText("접속 종료.\n");
                             });
                             break;
                         }
@@ -136,20 +136,20 @@ namespace CATEPRO
                         string[] token = filedata.Split('^');
                         filename = token[0];
                         int filelength = Convert.ToInt32(token[1]);
-                        Application.Current.Dispatcher.Invoke(() =>
-                        {
-                            tb.AppendText(token[0] + "\n" + token[1] + "\n");
-                        });
+                        //Application.Current.Dispatcher.Invoke(() =>
+                        //{
+                        //    tb.AppendText(token[0] + "\n" + token[1] + "\n");
+                        //});
 
                         dirname = "C:\\Users\\IOT\\Desktop\\testfile\\" + filename;
                         filestream = new FileStream(dirname, FileMode.Create, FileAccess.Write);
                         servwriter = new BinaryWriter(filestream);
 
                         stream.Write(sendbytes, 0, sendbytes.Length);
-                        Application.Current.Dispatcher.Invoke(() =>
-                        {
-                            tb.AppendText("ok 송신완료\n");
-                        });
+                        //Application.Current.Dispatcher.Invoke(() =>
+                        //{
+                        //    tb.AppendText("ok 송신완료\n");
+                        //});
 
                         //원본
                         bytes = new byte[filelength];
@@ -202,7 +202,7 @@ namespace CATEPRO
                 OpenCvSharp.Rect rect;
                 rect = Cv2.BoundingRect(approx); // 주어진 점을 감싸는 최소 크기의 사각형을 반환
                 double ar = rect.Width / (double)rect.Height;
-                if (ar >= 0.95 && ar <= 1.35) // 정사각형
+                if (ar >= 0.95 && ar <= 1.15) // 정사각형
                 {
                     shape = "square";
                 }
@@ -221,7 +221,7 @@ namespace CATEPRO
             }
             else if (approx.Length == 10) //별모양
             {
-                shape = "star!";
+                shape = "star";
             }
             else // 원
             {
@@ -234,10 +234,10 @@ namespace CATEPRO
         {
             await Task.Run(() =>
             {
-                Application.Current.Dispatcher.Invoke(() =>
-                {
-                    tb.AppendText(dirname + "\n");
-                });
+                //Application.Current.Dispatcher.Invoke(() =>
+                //{
+                //    tb.AppendText(dirname + "\n");
+                //});
                 Mat src = Cv2.ImRead(dirname);
 
                 Mat[] divcolor = new Mat[9] { new Mat(), new Mat(), new Mat(), new Mat(), new Mat(), new Mat(), new Mat(), new Mat(), new Mat() };
@@ -247,8 +247,8 @@ namespace CATEPRO
                 double[] cy = new double[9];
 
                 Mat mv = new Mat();
-                Cv2.CvtColor(src, mv, ColorConversionCodes.BGR2HSV);
-
+                //Mat mvlight = new Mat();
+                //Cv2.CvtColor(src, mv, ColorConversionCodes.BGR2HSV);
 
                 Application.Current.Dispatcher.Invoke(() =>
                 {
@@ -260,10 +260,22 @@ namespace CATEPRO
                 serverdb = new SQLiteConnection(dbpath);
                 serverdb.Open();
 
+                //int[] min = new int[8] { 170,5, 25, 37, 85, 114, 125, 148 };
+                //int[] max = new int[8] { 180, 20, 35, 75, 113, 124, 145, 168 };
+
+                Cv2.InRange(mv, new Scalar(169, 60, 70), new Scalar(180, 255, 255), divcolor[0]);
+                Cv2.InRange(mv, new Scalar(5, 50, 91), new Scalar(20, 255, 255), divcolor[1]);
+                Cv2.InRange(mv, new Scalar(25, 38, 95), new Scalar(35, 255, 255), divcolor[2]);
+                Cv2.InRange(mv, new Scalar(37, 34, 55), new Scalar(77, 255, 255), divcolor[3]);
+                Cv2.InRange(mv, new Scalar(85, 34, 85), new Scalar(113, 255, 255), divcolor[4]);
+                Cv2.InRange(mv, new Scalar(114, 70,74 ), new Scalar(124, 255, 255), divcolor[5]);
+                Cv2.InRange(mv, new Scalar(125, 45, 50), new Scalar(145, 255, 255), divcolor[6]);
+                Cv2.InRange(mv, new Scalar(148, 49, 85), new Scalar(168, 255, 255), divcolor[7]);
+
 
                 for (int tasknum = 0; tasknum < 8; tasknum++)
                 {
-                    Cv2.InRange(mv, new Scalar(min[tasknum], 100, 100), new Scalar(max[tasknum], 255, 255), divcolor[tasknum]);
+                    
                     Cv2.MedianBlur(mv, mv, 3);
 
                     Cv2.FindContours(divcolor[tasknum], out var shapecontour, out HierarchyIndex[] shapehierarchy, RetrievalModes.Tree, ContourApproximationModes.ApproxSimple);
@@ -281,29 +293,32 @@ namespace CATEPRO
                             Cv2.MinEnclosingCircle(con, out Point2f center, out float radius);
                             Cv2.Circle(src, new OpenCvSharp.Point(center.X, center.Y), (int)radius, Scalar.Red, 1, LineTypes.AntiAlias);
                             Cv2.PutText(src, Convert.ToString(codenum) + "_" + ColorList[tasknum] + "_" + shape, pnt, HersheyFonts.HersheySimplex, 0.25, Scalar.Black, 1); //이게 중심점에서 문자 띄우는 역할
-                            Application.Current.Dispatcher.Invoke(() =>
+
+                            lock (thisLock)
                             {
-                                tb.AppendText(Convert.ToString(codenum) + "_" + ColorList[tasknum] + "_" + shape + "\n");
-                                ProceedData.Getinstance().Add(new ProceedData() { dataA = codenum, dataB = shape+"-"+ColorList[tasknum] });
-                            });
+                                Application.Current.Dispatcher.Invoke(() =>
+                                {
+                                    tb.AppendText(Convert.ToString(codenum) + "_" + ColorList[tasknum] + "_" + shape +"좌표 = " +pnt+ "\n");
+                                    ProceedData.Getinstance().Add(new ProceedData() { dataA = codenum, dataB = shape + "-" + ColorList[tasknum] });
+                                });
 
-                            NumCount(shape, ColorList[tasknum]);
+                                NumCount(shape, ColorList[tasknum]);
 
-                            //db저장
-                            string sql = $"INSERT INTO RESULT VALUES({codenum++},'{shape}','{ColorList[tasknum]}')";
-                            SQLiteCommand command = new SQLiteCommand(sql, serverdb);
-                            command.ExecuteNonQuery();
+                                //db저장
+                                string sql = $"INSERT INTO RESULT VALUES({codenum},'{shape}','{ColorList[tasknum]}')";
+                                SQLiteCommand command = new SQLiteCommand(sql, serverdb);
+                                command.ExecuteNonQuery();
 
-                            Application.Current.Dispatcher.Invoke(() =>
-                            {
-                                total_lb.Content = $"TOTAL : {codenum - 1}";
-                            });
-                            string message = Convert.ToString(codenum++) + "^" + ColorList[tasknum] + "^" + shape;
-                            byte[] msg = Encoding.UTF8.GetBytes(message);
-                            stream.Write(msg, 0, msg.Length);
-                            stream.Flush();
-                            Thread.Sleep(100);
-
+                                Application.Current.Dispatcher.Invoke(() =>
+                                {
+                                    total_lb.Content = $"TOTAL : {codenum - 1}";
+                                });
+                                string message = Convert.ToString(codenum++) + "^" + ColorList[tasknum] + "^" + shape;
+                                byte[] msg = Encoding.UTF8.GetBytes(message);
+                                stream.Write(msg, 0, msg.Length);
+                                stream.Flush();
+                                Thread.Sleep(100);
+                            }
                         }
                     }
                 }
@@ -450,12 +465,11 @@ namespace CATEPRO
 
         public void SelectData()
         {
+            MessageBox.Show("지워야하는 갯수" + search_lv.Items.Count.ToString());
             for (int i = search_lv.Items.Count - 1; i >= 0; i--)
             {
                 Search.GetInstance().RemoveAt(i);
             }
-            MessageBox.Show("지워야하는 갯수" + search_lv.Items.Count.ToString());
-            search_lv.Items.Refresh();
 
             if (colorchoice == "none")
             {
@@ -469,6 +483,7 @@ namespace CATEPRO
                     Search.GetInstance().Add(new Search() { color = a, shape = b });
                 }
                 search_lv.ItemsSource = Search.GetInstance();
+                search_lv.Items.Refresh();
             }
             else if (shapechoice == "none")
             {
@@ -482,6 +497,7 @@ namespace CATEPRO
                     Search.GetInstance().Add(new Search() { color = a, shape = b });
                 }
                 search_lv.ItemsSource = Search.GetInstance();
+                search_lv.Items.Refresh();
             }
             else
             {
@@ -494,7 +510,9 @@ namespace CATEPRO
                     string b = rdr["SHAPE"].ToString();
                     Search.GetInstance().Add(new Search() { color = a, shape = b });
                 }
+
                 search_lv.ItemsSource = Search.GetInstance();
+                search_lv.Items.Refresh();
             }
         }
 
