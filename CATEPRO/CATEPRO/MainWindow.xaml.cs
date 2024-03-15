@@ -202,7 +202,7 @@ namespace CATEPRO
                 OpenCvSharp.Rect rect;
                 rect = Cv2.BoundingRect(approx); // 주어진 점을 감싸는 최소 크기의 사각형을 반환
                 double ar = rect.Width / (double)rect.Height;
-                if (ar >= 0.95 && ar <= 1.15) // 정사각형
+                if (ar >= 0.95 && ar <= 1.07) // 정사각형
                 {
                     shape = "square";
                 }
@@ -246,9 +246,12 @@ namespace CATEPRO
                 double[] cx = new double[9];
                 double[] cy = new double[9];
 
+              
+
                 Mat mv = new Mat();
-                //Mat mvlight = new Mat();
-                //Cv2.CvtColor(src, mv, ColorConversionCodes.BGR2HSV);
+                Cv2.CvtColor(src, mv, ColorConversionCodes.BGR2HSV);
+
+                Mat mvlight = mv + 5;
 
                 Application.Current.Dispatcher.Invoke(() =>
                 {
@@ -260,23 +263,28 @@ namespace CATEPRO
                 serverdb = new SQLiteConnection(dbpath);
                 serverdb.Open();
 
-                //int[] min = new int[8] { 170,5, 25, 37, 85, 114, 125, 148 };
-                //int[] max = new int[8] { 180, 20, 35, 75, 113, 124, 145, 168 };
+                Mat redplus = new Mat();
 
+                Cv2.InRange(mv, new Scalar(0, 60, 73), new Scalar(3, 255, 255), redplus);
                 Cv2.InRange(mv, new Scalar(169, 60, 70), new Scalar(180, 255, 255), divcolor[0]);
                 Cv2.InRange(mv, new Scalar(5, 50, 91), new Scalar(20, 255, 255), divcolor[1]);
                 Cv2.InRange(mv, new Scalar(25, 38, 95), new Scalar(35, 255, 255), divcolor[2]);
-                Cv2.InRange(mv, new Scalar(37, 34, 55), new Scalar(77, 255, 255), divcolor[3]);
-                Cv2.InRange(mv, new Scalar(85, 34, 85), new Scalar(113, 255, 255), divcolor[4]);
-                Cv2.InRange(mv, new Scalar(114, 70,74 ), new Scalar(124, 255, 255), divcolor[5]);
+                Cv2.InRange(mvlight, new Scalar(43, 24, 25), new Scalar(80, 255, 255), divcolor[3]);
+                Cv2.InRange(mv, new Scalar(85, 50, 55), new Scalar(113, 255, 255), divcolor[4]);
+                Cv2.InRange(mv, new Scalar(114, 70, 74), new Scalar(124, 255, 255), divcolor[5]);
                 Cv2.InRange(mv, new Scalar(125, 45, 50), new Scalar(145, 255, 255), divcolor[6]);
                 Cv2.InRange(mv, new Scalar(148, 49, 85), new Scalar(168, 255, 255), divcolor[7]);
 
+                Cv2.Add(divcolor[0], redplus, divcolor[0]);
+
+                Application.Current.Dispatcher.Invoke(() =>
+                {
+                    cam1.Source = OpenCvSharp.WpfExtensions.WriteableBitmapConverter.ToWriteableBitmap(divcolor[3]);
+                });
 
                 for (int tasknum = 0; tasknum < 8; tasknum++)
                 {
-                    
-                    Cv2.MedianBlur(mv, mv, 3);
+                   
 
                     Cv2.FindContours(divcolor[tasknum], out var shapecontour, out HierarchyIndex[] shapehierarchy, RetrievalModes.Tree, ContourApproximationModes.ApproxSimple);
 
@@ -286,7 +294,6 @@ namespace CATEPRO
                         double pixel = Cv2.ContourArea(con, true);
                         if (pixel < -300)
                         {
-                            //RotatedRect rect = Cv2.MinAreaRect(con);
                             mmt[tasknum] = Cv2.Moments(con);
                             OpenCvSharp.Point pnt = new OpenCvSharp.Point(mmt[tasknum].M10 / mmt[tasknum].M00 - 35, mmt[tasknum].M01 / mmt[tasknum].M00); // 중심점 찾기
                             string shape = GetShape(con); // 선분 갯수에 따라서 도형 나누기
@@ -311,7 +318,7 @@ namespace CATEPRO
 
                                 Application.Current.Dispatcher.Invoke(() =>
                                 {
-                                    total_lb.Content = $"TOTAL : {codenum - 1}";
+                                    total_lb.Content = $"TOTAL : {codenum}";
                                 });
                                 string message = Convert.ToString(codenum++) + "^" + ColorList[tasknum] + "^" + shape;
                                 byte[] msg = Encoding.UTF8.GetBytes(message);
@@ -325,7 +332,6 @@ namespace CATEPRO
 
                 Application.Current.Dispatcher.Invoke(() =>
                 {
-
                     cam2.Source = OpenCvSharp.WpfExtensions.WriteableBitmapConverter.ToWriteableBitmap(src);
                     proceed_lv.ItemsSource = ProceedData.Getinstance();
                     proceed_lv.Items.Refresh();
