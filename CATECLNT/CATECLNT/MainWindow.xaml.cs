@@ -59,7 +59,7 @@ namespace WebCamTest
             try
             {
                 client = new TcpClient();
-                await client.ConnectAsync("10.10.20.123", 9000);
+                await client.ConnectAsync("10.10.20.108", 9000);
                 stream = client.GetStream();
                 Console.WriteLine("Connected to server.");
                 Thread t1 = new Thread(new ThreadStart(TT1));
